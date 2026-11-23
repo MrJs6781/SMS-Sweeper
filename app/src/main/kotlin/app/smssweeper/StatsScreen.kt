@@ -69,7 +69,15 @@ fun computeStats(all: List<Sms>, now: Long = System.currentTimeMillis()): Stats 
 }
 
 @Composable
+private fun Stat(value: Int, label: String, modifier: Modifier) = Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Text("$value", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+    Hint(label)
+}
+
+@Composable
 fun StatsScreen(vm: AppVm) {
+    ScreenHeader(BarChartIcon, "آمار", "نگاهی کلی به صندوق پیامکت: حجم، ماه‌ها و فرستنده‌های پرپیام.")
+
     val all = vm.all
     if (all == null) {
         Panel { Text("پیامک‌ها هنوز خوانده نشده‌اند.") }
@@ -83,17 +91,17 @@ fun StatsScreen(vm: AppVm) {
     }
 
     Panel {
-        Text("خلاصه", fontWeight = FontWeight.Bold)
-        Text("کل پیامک‌ها: ${s.total}")
-        Text("دریافتی: ${s.inbox} · ارسالی: ${s.sent}")
-        Text("خوانده‌نشده: ${s.unread}")
-        s.oldest?.let { Text("قدیمی‌ترین پیامک: ${jalali(it)}") }
-        Text("حجم تقریبی متن: ${s.kilobytes} کیلوبایت")
+        Row(Modifier.fillMaxWidth()) {
+            Stat(s.total, "کل", Modifier.weight(1f))
+            Stat(s.inbox, "دریافتی", Modifier.weight(1f))
+            Stat(s.sent, "ارسالی", Modifier.weight(1f))
+            Stat(s.unread, "نخوانده", Modifier.weight(1f))
+        }
+        s.oldest?.let { Hint("قدیمی‌ترین پیامک: ${jalali(it)} · حجم تقریبی متن: ${s.kilobytes} کیلوبایت") }
     }
 
     Panel {
-        Text("پیامک در ۱۲ ماه اخیر", fontWeight = FontWeight.Bold)
-        Hint("${s.first} تا ${s.last}")
+        SectionLabel("پیامک در ۱۲ ماه اخیر (${s.first} تا ${s.last})")
         val max = maxOf(1, s.months.maxOf { it.count })
         Row(
             Modifier.fillMaxWidth().height(150.dp),
@@ -106,7 +114,7 @@ fun StatsScreen(vm: AppVm) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Bottom,
                 ) {
-                    Text("${b.count}", fontSize = 9.sp)
+                    Text("${b.count}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Box(
                         Modifier.fillMaxWidth().height(maxOf(2f, 100f * b.count / max).dp)
                             .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp)),
@@ -115,12 +123,17 @@ fun StatsScreen(vm: AppVm) {
                 }
             }
         }
-        Hint("عدد زیر هر ستون: شماره‌ی ماه شمسی")
+        Hint("عدد زیر هر ستون، شماره‌ی ماه شمسی است.")
     }
 
     Panel {
-        Text("پرپیامک‌ترین فرستنده‌ها", fontWeight = FontWeight.Bold)
-        s.top.forEach { Text("${it.address.ifBlank { "(بدون شماره)" }} — ${it.count}") }
-        Hint("برای حذف، به تب «فرستنده‌ها» برو.")
+        SectionLabel("پرپیامک‌ترین فرستنده‌ها")
+        s.top.forEach {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(it.address.ifBlank { "(بدون شماره)" })
+                Text("${it.count}", fontWeight = FontWeight.Bold)
+            }
+        }
+        Hint("برای حذف، به بخش «فرستنده‌ها» برو.")
     }
 }
