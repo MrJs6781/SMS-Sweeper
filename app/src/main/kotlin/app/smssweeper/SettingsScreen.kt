@@ -39,7 +39,6 @@ fun SettingsScreen(vm: AppVm) {
         OutlinedButton({ import.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth()) { Text("بازیابی از فایل پشتیبان") }
         Hint("بازیابی نیاز دارد اپ پیش‌فرض پیامک باشد؛ پیامک‌های تکراری دوباره اضافه نمی‌شوند.")
     }
-    vm.message?.let { Panel { Text(it, fontWeight = FontWeight.Medium) } }
 
     val l = vm.lists
     ListEditor(

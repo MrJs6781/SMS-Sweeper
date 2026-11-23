@@ -72,7 +72,6 @@ fun SendersScreen(vm: AppVm, isDefault: Boolean) {
     }
     if (shown.size > MAX_ROWS) Hint("فقط ${MAX_ROWS} فرستنده‌ی اول نمایش داده می‌شود؛ برای دیدن بقیه جستجو کن.")
     if (!isDefault) Hint("برای حذف، اپ باید پیش‌فرض پیامک باشد.")
-    vm.message?.let { Panel { Text(it, fontWeight = FontWeight.Medium) } }
 
     confirm?.let { s ->
         AlertDialog(

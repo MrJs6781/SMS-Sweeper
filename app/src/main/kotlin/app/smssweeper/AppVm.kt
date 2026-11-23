@@ -26,6 +26,66 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         Prefs.saveLists(ctx, l)
     }
 
+    // ---- in-app trash (backup batches) ----
+    var batches by mutableStateOf<List<Batch>>(emptyList())
+        private set
+
+    /** Backup made by the most recent delete; lets the UI offer "undo". */
+    var lastBatch by mutableStateOf<Batch?>(null)
+        private set
+
+    var retention by mutableIntStateOf(Prefs.retention(ctx))
+        private set
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            Backup.purge(ctx, retention)
+            batches = Backup.batches(ctx)
+        }
+    }
+
+    fun reloadBatches() {
+        batches = Backup.batches(ctx)
+    }
+
+    fun setRetention(days: Int) {
+        retention = days
+        Prefs.setRetention(ctx, days)
+        viewModelScope.launch(Dispatchers.IO) {
+            Backup.purge(ctx, days)
+            batches = Backup.batches(ctx)
+        }
+    }
+
+    fun restoreBatch(b: Batch) {
+        viewModelScope.launch {
+            message = runCatching {
+                withContext(Dispatchers.IO) {
+                    val msgs = b.file.inputStream().use { Backup.read(it) }
+                    val n = Backup.restore(ctx.contentResolver, msgs)
+                    b.file.delete() // only reached if the restore didn't throw
+                    n
+                }
+            }.fold({ "$it پیامک بازیابی شد." }, { "بازیابی ناموفق بود (آیا اپ پیش‌فرض پیامک است؟): ${it.message}" })
+            if (lastBatch?.file == b.file) lastBatch = null
+            reloadBatches()
+            loading = false
+            refresh()
+        }
+    }
+
+    fun deleteBatch(b: Batch) {
+        b.file.delete()
+        if (lastBatch?.file == b.file) lastBatch = null
+        reloadBatches()
+    }
+
+    fun emptyTrash() {
+        batches.forEach { it.file.delete() }
+        lastBatch = null
+        reloadBatches()
+    }
+
     var backupOn by mutableStateOf(Prefs.backupOn(ctx))
         private set
 
@@ -106,6 +166,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             busy = true
             progress = 0
             message = null
+            lastBatch = null
             val res = runCatching {
                 withContext(Dispatchers.IO) {
                     // If the backup fails this throws and nothing is deleted.
@@ -117,6 +178,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
                 { if (it == 0) "هیچ پیامکی حذف نشد؛ مطمئن شو این برنامه پیش‌فرض پیامک است." else "$it پیامک حذف شد." },
                 { "خطا: ${it.message}" },
             )
+            if (backupOn && res.getOrDefault(0) > 0) lastBatch = Backup.batches(ctx).firstOrNull()
+            reloadBatches()
             busy = false
             loading = false
             refresh()

@@ -40,6 +40,7 @@ enum class Tab(val label: String, val icon: String) {
     CLEAN("پاکسازی", "🧹"),
     SENDERS("فرستنده‌ها", "👥"),
     STATS("آمار", "📊"),
+    TRASH("سطل", "♻️"),
     SETTINGS("تنظیمات", "⚙️"),
 }
 
@@ -73,7 +74,7 @@ fun App(vm: AppVm) {
         bottomBar = {
             if (Tab.entries.size > 1) NavigationBar {
                 Tab.entries.forEach {
-                    NavigationBarItem(tab == it, { tab = it }, { Text(it.icon) }, label = { Text(it.label) })
+                    NavigationBarItem(tab == it, { tab = it; vm.message = null },{ Text(it.icon) }, label = { Text(it.label) })
                 }
             }
         },
@@ -100,7 +101,16 @@ fun App(vm: AppVm) {
                 Tab.CLEAN -> CleanScreen(vm, isDefault)
                 Tab.SENDERS -> SendersScreen(vm, isDefault)
                 Tab.STATS -> StatsScreen(vm)
+                Tab.TRASH -> TrashScreen(vm, isDefault)
                 Tab.SETTINGS -> SettingsScreen(vm)
+            }
+            vm.message?.let { msg ->
+                Panel {
+                    Text(msg, fontWeight = FontWeight.Medium)
+                    vm.lastBatch?.let { b ->
+                        OutlinedButton({ vm.restoreBatch(b) }, enabled = isDefault && !vm.busy) { Text("بازگردانی همین حذف") }
+                    }
+                }
             }
         }
     }

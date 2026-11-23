@@ -115,7 +115,6 @@ fun CleanScreen(vm: AppVm, isDefault: Boolean) {
         LinearProgressIndicator(Modifier.fillMaxWidth())
         if (vm.progress > 0) Hint("${vm.progress} پیامک حذف شد…")
     }
-    vm.message?.let { Panel { Text(it, fontWeight = FontWeight.Medium) } }
 
     confirm?.let { list ->
         AlertDialog(
