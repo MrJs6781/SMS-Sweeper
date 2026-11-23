@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 enum class Tab(val label: String, val icon: String) {
     CLEAN("پاکسازی", "🧹"),
     SENDERS("فرستنده‌ها", "👥"),
+    STATS("آمار", "📊"),
 }
 
 @Composable
@@ -97,6 +98,7 @@ fun App(vm: AppVm) {
             when (tab) {
                 Tab.CLEAN -> CleanScreen(vm, isDefault)
                 Tab.SENDERS -> SendersScreen(vm, isDefault)
+                Tab.STATS -> StatsScreen(vm)
             }
         }
     }
