@@ -36,12 +36,19 @@ fun FilterForm(f: Form) {
         ChipRow { TimeMode.entries.forEach { FilterChip(f.timeMode == it, { f.timeMode = it }, { Text(it.label) }) } }
         when (f.timeMode) {
             TimeMode.NONE -> Unit
-            TimeMode.BEFORE -> DateField("انتخاب تاریخ (قبل از آن حذف شود)", f.d1) { f.d1 = it }
+            TimeMode.BEFORE -> {
+                DateField("انتخاب تاریخ", f.d1) { f.d1 = it }
+                Hint("فقط مکالماتی که همه‌ی پیام‌هایشان قبل از این روز است. مکالمه‌ای که بعد از این تاریخ هم پیام دارد، دست‌نخورده می‌ماند.")
+            }
             TimeMode.RANGE -> {
                 DateField("از تاریخ", f.d1) { f.d1 = it }
                 DateField("تا تاریخ (شامل همین روز)", f.d2) { f.d2 = it }
+                Hint("فقط مکالماتی که همه‌ی پیام‌هایشان داخل این بازه است.")
             }
-            TimeMode.AGE -> NumberField("چند روز گذشته باشد؟", f.days) { f.days = it }
+            TimeMode.AGE -> {
+                NumberField("چند روز گذشته باشد؟", f.days) { f.days = it }
+                Hint("مکالماتی که آخرین پیامشان بیش از این تعداد روز پیش بوده.")
+            }
         }
 
         HorizontalDivider(color = line)
