@@ -42,6 +42,19 @@ data class Criteria(
             sender.isNotBlank() || keyword.isNotBlank() || read != ReadState.ANY || spam || oldestN != null || keepLatestN != null
 }
 
+/** User-managed lists. Senders match by "contains" (so a partial name or number prefix works). */
+data class Lists(
+    /** never deleted by any rule */
+    val protectedSenders: List<String> = emptyList(),
+    /** always counted as spam */
+    val blockedSenders: List<String> = emptyList(),
+    /** extra ad keywords on top of the built-in ones */
+    val spamWords: List<String> = emptyList(),
+) {
+    fun isProtected(address: String) = protectedSenders.any { it.isNotBlank() && address.contains(it, true) }
+    fun isBlocked(address: String) = blockedSenders.any { it.isNotBlank() && address.contains(it, true) }
+}
+
 private const val DAY = 86_400_000L
 
 object SmsRepo {
@@ -64,7 +77,12 @@ object SmsRepo {
     }
 
     /** [all] must be newest first. */
-    fun select(all: List<Sms>, c: Criteria, now: Long = System.currentTimeMillis()): List<Sms> {
+    fun select(
+        all: List<Sms>,
+        c: Criteria,
+        lists: Lists = Lists(),
+        now: Long = System.currentTimeMillis(),
+    ): List<Sms> {
         val s = matcher(c.sender, c.regex)
         val k = matcher(c.keyword, c.regex)
         val cutoff = c.olderThanDays?.let { now - it * DAY }
@@ -75,6 +93,7 @@ object SmsRepo {
                 Box.SENT -> m.type == Telephony.Sms.MESSAGE_TYPE_SENT
             }
             inBox &&
+                !lists.isProtected(m.address) &&
                 (c.before == null || m.date < c.before) &&
                 (c.from == null || m.date >= c.from) &&
                 (c.to == null || m.date < c.to) &&
@@ -82,7 +101,7 @@ object SmsRepo {
                 (s == null || s(m.address)) &&
                 (k == null || k(m.body)) &&
                 (c.read == ReadState.ANY || (c.read == ReadState.READ) == m.read) &&
-                (!c.spam || isSpam(m))
+                (!c.spam || isSpam(m, lists))
         }
         return when {
             c.oldestN != null -> hits.takeLast(c.oldestN)
@@ -109,11 +128,12 @@ object SmsRepo {
     )
     private val otp = Regex("رمز|کد تایید|کد تأیید|کد ورود|کد فعال|otp|verification|verify", RegexOption.IGNORE_CASE)
 
-    fun isSpam(m: Sms): Boolean {
+    fun isSpam(m: Sms, lists: Lists = Lists()): Boolean {
         if (m.type != Telephony.Sms.MESSAGE_TYPE_INBOX) return false
+        if (lists.isBlocked(m.address)) return true
         if (otp.containsMatchIn(m.body)) return false // never touch codes/passwords
         val b = m.body.lowercase()
-        return adWords.any { b.contains(it) }
+        return adWords.any { b.contains(it) } || lists.spamWords.any { it.isNotBlank() && b.contains(it.lowercase()) }
     }
 }
 

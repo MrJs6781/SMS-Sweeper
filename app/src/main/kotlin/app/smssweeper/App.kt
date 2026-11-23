@@ -40,6 +40,7 @@ enum class Tab(val label: String, val icon: String) {
     CLEAN("پاکسازی", "🧹"),
     SENDERS("فرستنده‌ها", "👥"),
     STATS("آمار", "📊"),
+    SETTINGS("تنظیمات", "⚙️"),
 }
 
 @Composable
@@ -99,6 +100,7 @@ fun App(vm: AppVm) {
                 Tab.CLEAN -> CleanScreen(vm, isDefault)
                 Tab.SENDERS -> SendersScreen(vm, isDefault)
                 Tab.STATS -> StatsScreen(vm)
+                Tab.SETTINGS -> SettingsScreen(vm)
             }
         }
     }

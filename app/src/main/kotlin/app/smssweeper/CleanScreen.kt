@@ -28,11 +28,12 @@ fun CleanScreen(vm: AppVm, isDefault: Boolean) {
     val all = vm.all
 
     // Live matches; reset to null first so stale results can never be deleted.
-    val hits by produceState<List<Sms>?>(null, all, criteria) {
+    val lists = vm.lists
+    val hits by produceState<List<Sms>?>(null, all, criteria, lists) {
         value = null
         if (all != null && criteria != null) {
             delay(200)
-            value = withContext(Dispatchers.Default) { SmsRepo.select(all, criteria) }
+            value = withContext(Dispatchers.Default) { SmsRepo.select(all, criteria, lists) }
         }
     }
     var confirm by remember { mutableStateOf<List<Sms>?>(null) }

@@ -50,9 +50,22 @@ fun SendersScreen(vm: AppVm, isDefault: Boolean) {
         Panel {
             Text(s.address.ifBlank { "(بدون شماره)" }, fontWeight = FontWeight.Bold)
             Hint("${s.count} پیامک · ${s.unread} خوانده‌نشده · آخرین: ${jalali(s.last)}")
+            val l = vm.lists
+            val protectedNow = l.isProtected(s.address)
             Row {
-                TextButton(onClick = { confirm = s }, enabled = isDefault && !vm.busy) {
+                TextButton(onClick = { confirm = s }, enabled = isDefault && !vm.busy && !protectedNow) {
                     Text("حذف همه", color = MaterialTheme.colorScheme.error)
+                }
+                if (s.address.isNotBlank()) {
+                    TextButton({
+                        vm.updateLists(
+                            if (protectedNow) l.copy(protectedSenders = l.protectedSenders.filter { !s.address.contains(it, true) })
+                            else l.copy(protectedSenders = (l.protectedSenders + s.address).distinct())
+                        )
+                    }) { Text(if (protectedNow) "برداشتن محافظت" else "محافظت") }
+                    if (!l.isBlocked(s.address)) {
+                        TextButton({ vm.updateLists(l.copy(blockedSenders = (l.blockedSenders + s.address).distinct())) }) { Text("بلاک") }
+                    }
                 }
             }
         }

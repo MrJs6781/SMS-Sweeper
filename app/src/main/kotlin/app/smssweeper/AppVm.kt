@@ -17,6 +17,14 @@ class AppVm(app: Application) : AndroidViewModel(app) {
 
     val form = Form()
 
+    var lists by mutableStateOf(Prefs.lists(ctx))
+        private set
+
+    fun updateLists(l: Lists) {
+        lists = l
+        Prefs.saveLists(ctx, l)
+    }
+
     /** Every message, newest first; null until loaded. */
     var all by mutableStateOf<List<Sms>?>(null)
         private set
