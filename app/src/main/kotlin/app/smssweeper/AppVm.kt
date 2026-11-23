@@ -1,6 +1,7 @@
 package app.smssweeper
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,41 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     fun updateLists(l: Lists) {
         lists = l
         Prefs.saveLists(ctx, l)
+    }
+
+    var backupOn by mutableStateOf(Prefs.backupOn(ctx))
+        private set
+
+    fun setBackup(v: Boolean) {
+        backupOn = v
+        Prefs.setBackupOn(ctx, v)
+    }
+
+    /** Writes every message to [uri] (user-chosen file). */
+    fun exportTo(uri: Uri) {
+        viewModelScope.launch {
+            message = runCatching {
+                withContext(Dispatchers.IO) {
+                    val msgs = SmsRepo.load(ctx.contentResolver)
+                    ctx.contentResolver.openOutputStream(uri)!!.use { Backup.write(it, msgs, "manual") }
+                    msgs.size
+                }
+            }.fold({ "$it پیامک در فایل پشتیبان ذخیره شد." }, { "خطا در پشتیبان‌گیری: ${it.message}" })
+        }
+    }
+
+    /** Restores messages from a backup file; needs the default-SMS role. */
+    fun importFrom(uri: Uri) {
+        viewModelScope.launch {
+            message = runCatching {
+                withContext(Dispatchers.IO) {
+                    val msgs = ctx.contentResolver.openInputStream(uri)!!.use { Backup.read(it) }
+                    Backup.restore(ctx.contentResolver, msgs)
+                }
+            }.fold({ "$it پیامک بازیابی شد." }, { "خطا در بازیابی: ${it.message}" })
+            loading = false
+            refresh()
+        }
     }
 
     var presets by mutableStateOf(Prefs.presets(ctx))
@@ -72,6 +108,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             message = null
             val res = runCatching {
                 withContext(Dispatchers.IO) {
+                    // If the backup fails this throws and nothing is deleted.
+                    if (backupOn) Backup.saveBatch(ctx, msgs)
                     SmsRepo.delete(ctx.contentResolver, msgs.map { it.id }) { progress = it }
                 }
             }

@@ -1,6 +1,9 @@
 package app.smssweeper
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
@@ -20,6 +23,24 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun SettingsScreen(vm: AppVm) {
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) vm.exportTo(uri)
+    }
+    val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.importFrom(uri)
+    }
+    Panel {
+        Text("پشتیبان‌گیری", fontWeight = FontWeight.Bold)
+        SwitchRow("پشتیبان خودکار قبل از هر حذف", vm.backupOn) { vm.setBackup(it) }
+        Hint("اگر روشن باشد، هر حذف قبل از اجرا در حافظه‌ی خود اپ ذخیره می‌شود و در صورت پشیمانی قابل بازگردانی است. اگر پشتیبان‌گیری شکست بخورد، چیزی حذف نمی‌شود.")
+        OutlinedButton({ export.launch("sms-backup-${iso(System.currentTimeMillis())}.json") }, Modifier.fillMaxWidth()) {
+            Text("پشتیبان‌گیری از همه‌ی پیامک‌ها (فایل)")
+        }
+        OutlinedButton({ import.launch(arrayOf("*/*")) }, Modifier.fillMaxWidth()) { Text("بازیابی از فایل پشتیبان") }
+        Hint("بازیابی نیاز دارد اپ پیش‌فرض پیامک باشد؛ پیامک‌های تکراری دوباره اضافه نمی‌شوند.")
+    }
+    vm.message?.let { Panel { Text(it, fontWeight = FontWeight.Medium) } }
+
     val l = vm.lists
     ListEditor(
         "فرستنده‌های محافظت‌شده",

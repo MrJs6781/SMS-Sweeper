@@ -16,6 +16,13 @@ object Prefs {
 
     fun lists(ctx: Context) = Lists(list(ctx, "protected"), list(ctx, "blocked"), list(ctx, "spamWords"))
 
+    fun backupOn(ctx: Context) = sp(ctx).getBoolean("backupOn", true)
+    fun setBackupOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("backupOn", v).apply()
+
+    /** Days to keep deleted messages in the in-app trash. */
+    fun retention(ctx: Context) = sp(ctx).getInt("retention", 30)
+    fun setRetention(ctx: Context, v: Int) = sp(ctx).edit().putInt("retention", v).apply()
+
     fun presets(ctx: Context): List<Preset> = runCatching {
         val a = JSONArray(sp(ctx).getString("presets", "[]"))
         List(a.length()) { i ->
