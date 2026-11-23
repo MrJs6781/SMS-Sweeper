@@ -59,5 +59,29 @@ class Form {
             }
         }
 
+    fun load(c: Criteria) {
+        box = c.box
+        timeMode = when {
+            c.olderThanDays != null -> TimeMode.AGE
+            c.before != null -> TimeMode.BEFORE
+            c.from != null || c.to != null -> TimeMode.RANGE
+            else -> TimeMode.NONE
+        }
+        d1 = c.before ?: c.from
+        d2 = c.to?.let { it - 1 } // stored bound is exclusive (start of next day)
+        days = c.olderThanDays?.toString().orEmpty()
+        sender = c.sender
+        keyword = c.keyword
+        regex = c.regex
+        read = c.read
+        spam = c.spam
+        countMode = when {
+            c.oldestN != null -> CountMode.OLDEST
+            c.keepLatestN != null -> CountMode.KEEP
+            else -> CountMode.NONE
+        }
+        n = (c.oldestN ?: c.keepLatestN)?.toString().orEmpty()
+    }
+
     val criteria: Criteria? get() = if (problem == null) build() else null
 }

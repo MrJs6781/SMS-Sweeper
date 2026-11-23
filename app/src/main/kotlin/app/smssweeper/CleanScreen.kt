@@ -1,7 +1,11 @@
 package app.smssweeper
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -22,6 +26,42 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
+private fun PresetsPanel(vm: AppVm) {
+    var naming by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    Panel {
+        Text("قانون‌های ذخیره‌شده", fontWeight = FontWeight.Bold)
+        if (vm.presets.isEmpty()) Hint("فرم پایین را پر کن و با یک نام ذخیره کن تا هر وقت خواستی با یک لمس اجرا شود.")
+        vm.presets.forEach { p ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(p.name)
+                Row {
+                    TextButton({ vm.form.load(p.criteria) }) { Text("بارگذاری") }
+                    TextButton({ vm.deletePreset(p.name) }) { Text("حذف", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+        OutlinedButton({ naming = true }, enabled = vm.form.criteria != null) { Text("ذخیره‌ی فرم فعلی") }
+    }
+    if (naming) {
+        AlertDialog(
+            onDismissRequest = { naming = false },
+            title = { Text("نام قانون") },
+            text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("مثلاً: اسپم قدیمی") }) },
+            confirmButton = {
+                TextButton({
+                    val c = vm.form.criteria
+                    if (name.isNotBlank() && c != null) vm.savePreset(name.trim(), c)
+                    naming = false
+                    name = ""
+                }) { Text("ذخیره") }
+            },
+            dismissButton = { TextButton({ naming = false }) { Text("انصراف") } },
+        )
+    }
+}
+
+@Composable
 fun CleanScreen(vm: AppVm, isDefault: Boolean) {
     val form = vm.form
     val criteria = form.criteria
@@ -38,6 +78,7 @@ fun CleanScreen(vm: AppVm, isDefault: Boolean) {
     }
     var confirm by remember { mutableStateOf<List<Sms>?>(null) }
 
+    PresetsPanel(vm)
     FilterForm(form)
     form.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
 

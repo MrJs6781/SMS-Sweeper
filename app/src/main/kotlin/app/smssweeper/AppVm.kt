@@ -25,6 +25,20 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         Prefs.saveLists(ctx, l)
     }
 
+    var presets by mutableStateOf(Prefs.presets(ctx))
+        private set
+
+    /** Saves under [name], replacing a preset with the same name. */
+    fun savePreset(name: String, c: Criteria) {
+        presets = presets.filter { it.name != name } + Preset(name, c)
+        Prefs.savePresets(ctx, presets)
+    }
+
+    fun deletePreset(name: String) {
+        presets = presets.filter { it.name != name }
+        Prefs.savePresets(ctx, presets)
+    }
+
     /** Every message, newest first; null until loaded. */
     var all by mutableStateOf<List<Sms>?>(null)
         private set

@@ -2,6 +2,7 @@ package app.smssweeper
 
 import android.content.ContentResolver
 import android.provider.Telephony
+import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Date
@@ -41,6 +42,39 @@ data class Criteria(
         get() = box != Box.ALL || before != null || from != null || to != null || olderThanDays != null ||
             sender.isNotBlank() || keyword.isNotBlank() || read != ReadState.ANY || spam || oldestN != null || keepLatestN != null
 }
+
+/** A named, reusable [Criteria]. */
+data class Preset(val name: String, val criteria: Criteria)
+
+fun Criteria.toJson(): JSONObject = JSONObject().also { o ->
+    o.put("box", box.name)
+    before?.let { o.put("before", it) }
+    from?.let { o.put("from", it) }
+    to?.let { o.put("to", it) }
+    olderThanDays?.let { o.put("olderThanDays", it) }
+    o.put("sender", sender)
+    o.put("keyword", keyword)
+    o.put("regex", regex)
+    o.put("read", read.name)
+    o.put("spam", spam)
+    oldestN?.let { o.put("oldestN", it) }
+    keepLatestN?.let { o.put("keepLatestN", it) }
+}
+
+fun criteriaFromJson(o: JSONObject) = Criteria(
+    box = runCatching { Box.valueOf(o.optString("box")) }.getOrDefault(Box.ALL),
+    before = if (o.has("before")) o.getLong("before") else null,
+    from = if (o.has("from")) o.getLong("from") else null,
+    to = if (o.has("to")) o.getLong("to") else null,
+    olderThanDays = if (o.has("olderThanDays")) o.getInt("olderThanDays") else null,
+    sender = o.optString("sender"),
+    keyword = o.optString("keyword"),
+    regex = o.optBoolean("regex"),
+    read = runCatching { ReadState.valueOf(o.optString("read")) }.getOrDefault(ReadState.ANY),
+    spam = o.optBoolean("spam"),
+    oldestN = if (o.has("oldestN")) o.getInt("oldestN") else null,
+    keepLatestN = if (o.has("keepLatestN")) o.getInt("keepLatestN") else null,
+)
 
 /** User-managed lists. Senders match by "contains" (so a partial name or number prefix works). */
 data class Lists(
