@@ -11,30 +11,38 @@ enum class Box(val label: String) { ALL("همه"), INBOX("دریافتی"), SENT
 
 data class Sms(val id: Long, val address: String, val body: String, val date: Long, val type: Int)
 
-/** What to delete. Date values are epoch millis in local time zone. */
-sealed interface Rule {
-    data class Before(val ts: Long) : Rule
-    /** [from, to) */
-    data class Range(val from: Long, val to: Long) : Rule
-    data class OldestN(val n: Int) : Rule
-    data class KeepLatestN(val n: Int) : Rule
-    data object Spam : Rule
-    data class Match(val sender: String, val keyword: String) : Rule
+/** All set conditions must match (AND). Dates are epoch millis in local time. */
+data class Criteria(
+    val box: Box = Box.ALL,
+    val before: Long? = null,
+    val from: Long? = null,
+    /** exclusive upper bound */
+    val to: Long? = null,
+    val olderThanDays: Int? = null,
+    val sender: String = "",
+    val keyword: String = "",
+    val regex: Boolean = false,
+    val spam: Boolean = false,
+    /** applied last: only the oldest N of what matched */
+    val oldestN: Int? = null,
+    /** applied last: everything that matched except the newest N */
+    val keepLatestN: Int? = null,
+) {
+    val hasCondition: Boolean
+        get() = box != Box.ALL || before != null || from != null || to != null || olderThanDays != null ||
+            sender.isNotBlank() || keyword.isNotBlank() || spam || oldestN != null || keepLatestN != null
 }
 
+private const val DAY = 86_400_000L
+
 object SmsRepo {
-    /** All messages of [box], newest first. */
-    fun load(cr: ContentResolver, box: Box): List<Sms> {
-        val where = when (box) {
-            Box.ALL -> null
-            Box.INBOX -> "type=${Telephony.Sms.MESSAGE_TYPE_INBOX}"
-            Box.SENT -> "type=${Telephony.Sms.MESSAGE_TYPE_SENT}"
-        }
+    /** Every message, newest first. */
+    fun load(cr: ContentResolver): List<Sms> {
         val out = ArrayList<Sms>()
         cr.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf("_id", "address", "body", "date", "type"),
-            where, null, "date DESC"
+            null, null, "date DESC"
         )?.use { c ->
             while (c.moveToNext()) {
                 out += Sms(c.getLong(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(), c.getLong(3), c.getInt(4))
@@ -44,19 +52,29 @@ object SmsRepo {
     }
 
     /** [all] must be newest first. */
-    fun select(all: List<Sms>, rule: Rule): List<Sms> = when (rule) {
-        is Rule.Before -> all.filter { it.date < rule.ts }
-        is Rule.Range -> all.filter { it.date >= rule.from && it.date < rule.to }
-        is Rule.OldestN -> all.takeLast(rule.n)
-        is Rule.KeepLatestN -> all.drop(rule.n)
-        Rule.Spam -> all.filter { isSpam(it) }
-        is Rule.Match -> {
-            val s = rule.sender.trim()
-            val k = rule.keyword.trim()
-            if (s.isEmpty() && k.isEmpty()) emptyList()
-            else all.filter {
-                (s.isEmpty() || it.address.contains(s, true)) && (k.isEmpty() || it.body.contains(k, true))
+    fun select(all: List<Sms>, c: Criteria, now: Long = System.currentTimeMillis()): List<Sms> {
+        val s = matcher(c.sender, c.regex)
+        val k = matcher(c.keyword, c.regex)
+        val cutoff = c.olderThanDays?.let { now - it * DAY }
+        val hits = all.filter { m ->
+            val inBox = when (c.box) {
+                Box.ALL -> true
+                Box.INBOX -> m.type == Telephony.Sms.MESSAGE_TYPE_INBOX
+                Box.SENT -> m.type == Telephony.Sms.MESSAGE_TYPE_SENT
             }
+            inBox &&
+                (c.before == null || m.date < c.before) &&
+                (c.from == null || m.date >= c.from) &&
+                (c.to == null || m.date < c.to) &&
+                (cutoff == null || m.date < cutoff) &&
+                (s == null || s(m.address)) &&
+                (k == null || k(m.body)) &&
+                (!c.spam || isSpam(m))
+        }
+        return when {
+            c.oldestN != null -> hits.takeLast(c.oldestN)
+            c.keepLatestN != null -> hits.drop(c.keepLatestN)
+            else -> hits
         }
     }
 
@@ -85,6 +103,20 @@ object SmsRepo {
         return adWords.any { b.contains(it) }
     }
 }
+
+private fun matcher(pattern: String, regex: Boolean): ((String) -> Boolean)? {
+    val t = pattern.trim()
+    if (t.isEmpty()) return null
+    if (!regex) return { s -> s.contains(t, true) }
+    val r = runCatching { Regex(t, RegexOption.IGNORE_CASE) }.getOrNull()
+    return { s -> r != null && r.containsMatchIn(s) }
+}
+
+fun validRegex(p: String) = p.isBlank() || runCatching { Regex(p) }.isSuccess
+
+/** Reads digits in any script (Latin, Persian, Arabic-Indic). */
+fun digits(s: String): Int? =
+    s.mapNotNull { Character.digit(it, 10).takeIf { d -> d >= 0 } }.joinToString("").toIntOrNull()
 
 // ---- dates ----
 private val zone: ZoneId get() = ZoneId.systemDefault()
