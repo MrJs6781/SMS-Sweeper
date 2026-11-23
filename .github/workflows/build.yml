@@ -67,7 +67,16 @@ jobs:
           fi
 
       - name: Build
-        run: gradle assembleRelease --no-daemon -PversionName=${{ steps.v.outputs.name }} -PversionCode=${{ github.run_number }}
+        run: |
+          set -o pipefail
+          gradle assembleRelease --no-daemon -PversionName=${{ steps.v.outputs.name }} -PversionCode=${{ github.run_number }} 2>&1 | tee build.log
+
+      - name: Show compile errors as annotations
+        if: failure()
+        run: |
+          grep -E "^e: |What went wrong|error:" -A3 build.log | head -80 | while IFS= read -r l; do
+            echo "::error::${l//$'\r'/}"
+          done
 
       - name: Rename APK
         run: mv app/build/outputs/apk/release/app-release.apk "SMS-Sweeper-${{ steps.v.outputs.name }}.apk"
