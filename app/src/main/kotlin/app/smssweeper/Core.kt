@@ -2,61 +2,145 @@ package app.smssweeper
 
 import android.content.ContentResolver
 import android.provider.Telephony
+import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.Date
 
 enum class Box(val label: String) { ALL("همه"), INBOX("دریافتی"), SENT("ارسالی") }
 
-data class Sms(val id: Long, val address: String, val body: String, val date: Long, val type: Int)
+enum class ReadState(val label: String) { ANY("همه"), UNREAD("خوانده‌نشده"), READ("خوانده‌شده") }
 
-/** What to delete. Date values are epoch millis in local time zone. */
-sealed interface Rule {
-    data class Before(val ts: Long) : Rule
-    /** [from, to) */
-    data class Range(val from: Long, val to: Long) : Rule
-    data class OldestN(val n: Int) : Rule
-    data class KeepLatestN(val n: Int) : Rule
-    data object Spam : Rule
-    data class Match(val sender: String, val keyword: String) : Rule
+data class Sms(
+    val id: Long,
+    val address: String,
+    val body: String,
+    val date: Long,
+    val type: Int,
+    val read: Boolean = true,
+)
+
+/** All set conditions must match (AND). Dates are epoch millis in local time. */
+data class Criteria(
+    val box: Box = Box.ALL,
+    val before: Long? = null,
+    val from: Long? = null,
+    /** exclusive upper bound */
+    val to: Long? = null,
+    val olderThanDays: Int? = null,
+    val sender: String = "",
+    val keyword: String = "",
+    val regex: Boolean = false,
+    val read: ReadState = ReadState.ANY,
+    val spam: Boolean = false,
+    /** applied last: only the oldest N of what matched */
+    val oldestN: Int? = null,
+    /** applied last: everything that matched except the newest N */
+    val keepLatestN: Int? = null,
+) {
+    val hasCondition: Boolean
+        get() = box != Box.ALL || before != null || from != null || to != null || olderThanDays != null ||
+            sender.isNotBlank() || keyword.isNotBlank() || read != ReadState.ANY || spam || oldestN != null || keepLatestN != null
 }
 
+/** A named, reusable [Criteria]. */
+data class Preset(val name: String, val criteria: Criteria)
+
+fun Criteria.toJson(): JSONObject = JSONObject().also { o ->
+    o.put("box", box.name)
+    before?.let { o.put("before", it) }
+    from?.let { o.put("from", it) }
+    to?.let { o.put("to", it) }
+    olderThanDays?.let { o.put("olderThanDays", it) }
+    o.put("sender", sender)
+    o.put("keyword", keyword)
+    o.put("regex", regex)
+    o.put("read", read.name)
+    o.put("spam", spam)
+    oldestN?.let { o.put("oldestN", it) }
+    keepLatestN?.let { o.put("keepLatestN", it) }
+}
+
+fun criteriaFromJson(o: JSONObject) = Criteria(
+    box = runCatching { Box.valueOf(o.optString("box")) }.getOrDefault(Box.ALL),
+    before = if (o.has("before")) o.getLong("before") else null,
+    from = if (o.has("from")) o.getLong("from") else null,
+    to = if (o.has("to")) o.getLong("to") else null,
+    olderThanDays = if (o.has("olderThanDays")) o.getInt("olderThanDays") else null,
+    sender = o.optString("sender"),
+    keyword = o.optString("keyword"),
+    regex = o.optBoolean("regex"),
+    read = runCatching { ReadState.valueOf(o.optString("read")) }.getOrDefault(ReadState.ANY),
+    spam = o.optBoolean("spam"),
+    oldestN = if (o.has("oldestN")) o.getInt("oldestN") else null,
+    keepLatestN = if (o.has("keepLatestN")) o.getInt("keepLatestN") else null,
+)
+
+/** User-managed lists. Senders match by "contains" (so a partial name or number prefix works). */
+data class Lists(
+    /** never deleted by any rule */
+    val protectedSenders: List<String> = emptyList(),
+    /** always counted as spam */
+    val blockedSenders: List<String> = emptyList(),
+    /** extra ad keywords on top of the built-in ones */
+    val spamWords: List<String> = emptyList(),
+) {
+    fun isProtected(address: String) = protectedSenders.any { it.isNotBlank() && address.contains(it, true) }
+    fun isBlocked(address: String) = blockedSenders.any { it.isNotBlank() && address.contains(it, true) }
+}
+
+private const val DAY = 86_400_000L
+
 object SmsRepo {
-    /** All messages of [box], newest first. */
-    fun load(cr: ContentResolver, box: Box): List<Sms> {
-        val where = when (box) {
-            Box.ALL -> null
-            Box.INBOX -> "type=${Telephony.Sms.MESSAGE_TYPE_INBOX}"
-            Box.SENT -> "type=${Telephony.Sms.MESSAGE_TYPE_SENT}"
-        }
+    /** Every message, newest first. */
+    fun load(cr: ContentResolver): List<Sms> {
         val out = ArrayList<Sms>()
         cr.query(
             Telephony.Sms.CONTENT_URI,
-            arrayOf("_id", "address", "body", "date", "type"),
-            where, null, "date DESC"
+            arrayOf("_id", "address", "body", "date", "type", "read"),
+            null, null, "date DESC"
         )?.use { c ->
             while (c.moveToNext()) {
-                out += Sms(c.getLong(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(), c.getLong(3), c.getInt(4))
+                out += Sms(
+                    c.getLong(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(),
+                    c.getLong(3), c.getInt(4), c.getInt(5) != 0,
+                )
             }
         }
         return out
     }
 
     /** [all] must be newest first. */
-    fun select(all: List<Sms>, rule: Rule): List<Sms> = when (rule) {
-        is Rule.Before -> all.filter { it.date < rule.ts }
-        is Rule.Range -> all.filter { it.date >= rule.from && it.date < rule.to }
-        is Rule.OldestN -> all.takeLast(rule.n)
-        is Rule.KeepLatestN -> all.drop(rule.n)
-        Rule.Spam -> all.filter { isSpam(it) }
-        is Rule.Match -> {
-            val s = rule.sender.trim()
-            val k = rule.keyword.trim()
-            if (s.isEmpty() && k.isEmpty()) emptyList()
-            else all.filter {
-                (s.isEmpty() || it.address.contains(s, true)) && (k.isEmpty() || it.body.contains(k, true))
+    fun select(
+        all: List<Sms>,
+        c: Criteria,
+        lists: Lists = Lists(),
+        now: Long = System.currentTimeMillis(),
+    ): List<Sms> {
+        val s = matcher(c.sender, c.regex)
+        val k = matcher(c.keyword, c.regex)
+        val cutoff = c.olderThanDays?.let { now - it * DAY }
+        val hits = all.filter { m ->
+            val inBox = when (c.box) {
+                Box.ALL -> true
+                Box.INBOX -> m.type == Telephony.Sms.MESSAGE_TYPE_INBOX
+                Box.SENT -> m.type == Telephony.Sms.MESSAGE_TYPE_SENT
             }
+            inBox &&
+                !lists.isProtected(m.address) &&
+                (c.before == null || m.date < c.before) &&
+                (c.from == null || m.date >= c.from) &&
+                (c.to == null || m.date < c.to) &&
+                (cutoff == null || m.date < cutoff) &&
+                (s == null || s(m.address)) &&
+                (k == null || k(m.body)) &&
+                (c.read == ReadState.ANY || (c.read == ReadState.READ) == m.read) &&
+                (!c.spam || isSpam(m, lists))
+        }
+        return when {
+            c.oldestN != null -> hits.takeLast(c.oldestN)
+            c.keepLatestN != null -> hits.drop(c.keepLatestN)
+            else -> hits
         }
     }
 
@@ -78,23 +162,31 @@ object SmsRepo {
     )
     private val otp = Regex("رمز|کد تایید|کد تأیید|کد ورود|کد فعال|otp|verification|verify", RegexOption.IGNORE_CASE)
 
-    fun isSpam(m: Sms): Boolean {
+    fun isSpam(m: Sms, lists: Lists = Lists()): Boolean {
         if (m.type != Telephony.Sms.MESSAGE_TYPE_INBOX) return false
+        if (lists.isBlocked(m.address)) return true
         if (otp.containsMatchIn(m.body)) return false // never touch codes/passwords
         val b = m.body.lowercase()
-        return adWords.any { b.contains(it) }
+        return adWords.any { b.contains(it) } || lists.spamWords.any { it.isNotBlank() && b.contains(it.lowercase()) }
     }
 }
 
+private fun matcher(pattern: String, regex: Boolean): ((String) -> Boolean)? {
+    val t = pattern.trim()
+    if (t.isEmpty()) return null
+    if (!regex) return { s -> s.contains(t, true) }
+    val r = runCatching { Regex(t, RegexOption.IGNORE_CASE) }.getOrNull()
+    return { s -> r != null && r.containsMatchIn(s) }
+}
+
+fun validRegex(p: String) = p.isBlank() || runCatching { Regex(p) }.isSuccess
+
+/** Reads digits in any script (Latin, Persian, Arabic-Indic). */
+fun digits(s: String): Int? =
+    s.mapNotNull { Character.digit(it, 10).takeIf { d -> d >= 0 } }.joinToString("").toIntOrNull()
+
 // ---- dates ----
 private val zone: ZoneId get() = ZoneId.systemDefault()
-
-/** Material date picker returns UTC midnight; convert to local midnight. */
-fun fromPicker(utc: Long): Long =
-    Instant.ofEpochMilli(utc).atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
-
-fun toPicker(local: Long): Long =
-    Instant.ofEpochMilli(local).atZone(zone).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 
 fun dayAfter(local: Long): Long =
     Instant.ofEpochMilli(local).atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()

@@ -2,12 +2,17 @@ name: Build APK
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -24,23 +29,66 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      # Keep the same debug signing key across runs so new APKs can update an installed one
+      # Fallback signing key (used only when no release key is configured):
+      # cached so successive builds stay signature-compatible.
       - uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
           key: debug-keystore-v1
 
-      - run: gradle assembleDebug --no-daemon
+      # Optional release key: repo secrets KEYSTORE_B64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+      - name: Restore release signing key (if configured)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks"
+              echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "KEY_ALIAS=$KEY_ALIAS"
+              echo "KEY_PASSWORD=$KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "Signing with the release key."
+          else
+            echo "No release key configured; falling back to the debug key."
+          fi
 
-      - run: mv app/build/outputs/apk/debug/app-debug.apk SMS-Sweeper.apk
+      - name: Compute version
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "name=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=0.0-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: |
+          set -o pipefail
+          gradle assembleRelease --no-daemon -PversionName=${{ steps.v.outputs.name }} -PversionCode=${{ github.run_number }} 2>&1 | tee build.log
+
+      - name: Show compile errors as annotations
+        if: failure()
+        run: |
+          grep -E "^e: |What went wrong|error:" -A3 build.log | head -80 | while IFS= read -r l; do
+            echo "::error::${l//$'\r'/}"
+          done
+
+      - name: Rename APK
+        run: mv app/build/outputs/apk/release/app-release.apk "SMS-Sweeper-${{ steps.v.outputs.name }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: SMS-Sweeper
-          path: SMS-Sweeper.apk
+          path: SMS-Sweeper-*.apk
 
       - name: Publish release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: SMS-Sweeper.apk
+          files: SMS-Sweeper-*.apk
+          generate_release_notes: true
