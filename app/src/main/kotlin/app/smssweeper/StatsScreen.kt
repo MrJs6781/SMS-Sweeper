@@ -1,7 +1,6 @@
 package app.smssweeper
 
 import android.icu.util.Calendar
-import android.icu.util.PersianCalendar
 import android.provider.Telephony
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +41,7 @@ class Stats(
 
 /** Pure CPU work; call off the main thread. [all] is newest first. */
 fun computeStats(all: List<Sms>, now: Long = System.currentTimeMillis()): Stats {
-    val cal = PersianCalendar().apply { timeInMillis = now }
+    val cal = persianCal().apply { timeInMillis = now }
     var y = cal.get(Calendar.YEAR)
     var m = cal.get(Calendar.MONTH)
     val keys = ArrayList<Pair<Int, Int>>() // (year, month0), oldest first

@@ -1,7 +1,7 @@
 package app.smssweeper
 
 import android.icu.util.Calendar
-import android.icu.util.PersianCalendar
+import android.icu.util.ULocale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,11 +34,14 @@ val JALALI_MONTHS = listOf(
     "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
 )
 
-private fun cal(y: Int, m: Int, d: Int) = PersianCalendar().apply { clear(); set(y, m - 1, d) }
+/** A fresh ICU calendar using the Persian (Solar Hijri) system, in the default time zone. */
+fun persianCal(): Calendar = Calendar.getInstance(ULocale("fa_IR@calendar=persian"))
+
+private fun cal(y: Int, m: Int, d: Int) = persianCal().apply { clear(); set(y, m - 1, d) }
 
 /** (year, month 1..12, day) of [ms] in the Persian calendar. */
 fun jalaliParts(ms: Long): Triple<Int, Int, Int> {
-    val c = PersianCalendar().apply { timeInMillis = ms }
+    val c = persianCal().apply { timeInMillis = ms }
     return Triple(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
 }
 
