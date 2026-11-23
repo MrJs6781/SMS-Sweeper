@@ -26,6 +26,15 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         Prefs.saveLists(ctx, l)
     }
 
+    /** 0 = follow system, 1 = light, 2 = dark */
+    var themeMode by mutableIntStateOf(Prefs.theme(ctx))
+        private set
+
+    fun changeTheme(mode: Int) {
+        themeMode = mode
+        Prefs.setTheme(ctx, mode)
+    }
+
     // ---- scheduled auto-clean ----
     var autoOn by mutableStateOf(Prefs.autoOn(ctx))
         private set

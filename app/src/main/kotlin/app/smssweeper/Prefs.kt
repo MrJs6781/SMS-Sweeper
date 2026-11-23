@@ -16,6 +16,14 @@ object Prefs {
 
     fun lists(ctx: Context) = Lists(list(ctx, "protected"), list(ctx, "blocked"), list(ctx, "spamWords"))
 
+    /** 0 = follow system, 1 = light, 2 = dark */
+    fun theme(ctx: Context) = sp(ctx).getInt("theme", 0)
+    fun setTheme(ctx: Context, v: Int) = sp(ctx).edit().putInt("theme", v).apply()
+
+    /** True once the first-run permission screen has been completed (or skipped). */
+    fun onboarded(ctx: Context) = sp(ctx).getBoolean("onboarded", false)
+    fun setOnboarded(ctx: Context) = sp(ctx).edit().putBoolean("onboarded", true).apply()
+
     fun backupOn(ctx: Context) = sp(ctx).getBoolean("backupOn", true)
     fun setBackupOn(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("backupOn", v).apply()
 
