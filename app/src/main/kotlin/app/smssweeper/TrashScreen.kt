@@ -24,7 +24,7 @@ fun TrashScreen(vm: AppVm, isDefault: Boolean) {
         Text("سطل بازیافت", fontWeight = FontWeight.Bold)
         Hint("پیامک‌های حذف‌شده (وقتی «پشتیبان قبل از حذف» روشن است) این مدت اینجا می‌مانند و بعد برای همیشه پاک می‌شوند.")
         ChipRow {
-            listOf(7, 30, 90).forEach { FilterChip(vm.retention == it, { vm.setRetention(it) }, { Text("$it روز") }) }
+            listOf(7, 30, 90).forEach { FilterChip(vm.retention == it, { vm.changeRetention(it) }, { Text("$it روز") }) }
         }
     }
 

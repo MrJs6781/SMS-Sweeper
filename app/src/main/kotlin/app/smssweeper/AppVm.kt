@@ -81,7 +81,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         batches = Backup.batches(ctx)
     }
 
-    fun setRetention(days: Int) {
+    fun changeRetention(days: Int) {
         retention = days
         Prefs.setRetention(ctx, days)
         viewModelScope.launch(Dispatchers.IO) {
