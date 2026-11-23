@@ -22,6 +22,7 @@ class Form {
     var sender by mutableStateOf("")
     var keyword by mutableStateOf("")
     var regex by mutableStateOf(false)
+    var read by mutableStateOf(ReadState.ANY)
     var spam by mutableStateOf(false)
     var countMode by mutableStateOf(CountMode.NONE)
     var n by mutableStateOf("")
@@ -35,6 +36,7 @@ class Form {
         sender = sender,
         keyword = keyword,
         regex = regex,
+        read = read,
         spam = spam,
         oldestN = if (countMode == CountMode.OLDEST) digits(n) else null,
         keepLatestN = if (countMode == CountMode.KEEP) digits(n) else null,

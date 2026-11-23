@@ -47,6 +47,8 @@ fun FilterForm(f: Form) {
             label = { Text("متن پیام شامل") }, singleLine = true,
         )
         SwitchRow("استفاده از عبارت منظم (regex)", f.regex) { f.regex = it }
+        Text("وضعیت خواندن")
+        ChipRow { ReadState.entries.forEach { FilterChip(f.read == it, { f.read = it }, { Text(it.label) }) } }
         SwitchRow("فقط اسپم (تشخیص تبلیغات)", f.spam) { f.spam = it }
         if (f.spam) {
             Hint("پیامک‌های دریافتیِ تبلیغاتی (لغو ۱۱، تخفیف، جایزه، لینک و …). کد تأیید و رمز هرگز اسپم حساب نمی‌شوند؛ تشخیص بر پایه‌ی کلمات کلیدی است.")

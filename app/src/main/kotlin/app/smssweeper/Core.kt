@@ -9,7 +9,16 @@ import java.util.Date
 
 enum class Box(val label: String) { ALL("همه"), INBOX("دریافتی"), SENT("ارسالی") }
 
-data class Sms(val id: Long, val address: String, val body: String, val date: Long, val type: Int)
+enum class ReadState(val label: String) { ANY("همه"), UNREAD("خوانده‌نشده"), READ("خوانده‌شده") }
+
+data class Sms(
+    val id: Long,
+    val address: String,
+    val body: String,
+    val date: Long,
+    val type: Int,
+    val read: Boolean = true,
+)
 
 /** All set conditions must match (AND). Dates are epoch millis in local time. */
 data class Criteria(
@@ -22,6 +31,7 @@ data class Criteria(
     val sender: String = "",
     val keyword: String = "",
     val regex: Boolean = false,
+    val read: ReadState = ReadState.ANY,
     val spam: Boolean = false,
     /** applied last: only the oldest N of what matched */
     val oldestN: Int? = null,
@@ -30,7 +40,7 @@ data class Criteria(
 ) {
     val hasCondition: Boolean
         get() = box != Box.ALL || before != null || from != null || to != null || olderThanDays != null ||
-            sender.isNotBlank() || keyword.isNotBlank() || spam || oldestN != null || keepLatestN != null
+            sender.isNotBlank() || keyword.isNotBlank() || read != ReadState.ANY || spam || oldestN != null || keepLatestN != null
 }
 
 private const val DAY = 86_400_000L
@@ -41,11 +51,14 @@ object SmsRepo {
         val out = ArrayList<Sms>()
         cr.query(
             Telephony.Sms.CONTENT_URI,
-            arrayOf("_id", "address", "body", "date", "type"),
+            arrayOf("_id", "address", "body", "date", "type", "read"),
             null, null, "date DESC"
         )?.use { c ->
             while (c.moveToNext()) {
-                out += Sms(c.getLong(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(), c.getLong(3), c.getInt(4))
+                out += Sms(
+                    c.getLong(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(),
+                    c.getLong(3), c.getInt(4), c.getInt(5) != 0,
+                )
             }
         }
         return out
@@ -69,6 +82,7 @@ object SmsRepo {
                 (cutoff == null || m.date < cutoff) &&
                 (s == null || s(m.address)) &&
                 (k == null || k(m.body)) &&
+                (c.read == ReadState.ANY || (c.read == ReadState.READ) == m.read) &&
                 (!c.spam || isSpam(m))
         }
         return when {
