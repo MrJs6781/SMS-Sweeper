@@ -4,7 +4,6 @@ import android.content.ContentResolver
 import android.provider.Telephony
 import java.time.Instant
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.Date
 
 enum class Box(val label: String) { ALL("همه"), INBOX("دریافتی"), SENT("ارسالی") }
@@ -134,13 +133,6 @@ fun digits(s: String): Int? =
 
 // ---- dates ----
 private val zone: ZoneId get() = ZoneId.systemDefault()
-
-/** Material date picker returns UTC midnight; convert to local midnight. */
-fun fromPicker(utc: Long): Long =
-    Instant.ofEpochMilli(utc).atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
-
-fun toPicker(local: Long): Long =
-    Instant.ofEpochMilli(local).atZone(zone).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 
 fun dayAfter(local: Long): Long =
     Instant.ofEpochMilli(local).atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
