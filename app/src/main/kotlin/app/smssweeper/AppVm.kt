@@ -26,6 +26,39 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         Prefs.saveLists(ctx, l)
     }
 
+    // ---- scheduled auto-clean ----
+    var autoOn by mutableStateOf(Prefs.autoOn(ctx))
+        private set
+    var autoEvery by mutableIntStateOf(Prefs.autoEvery(ctx))
+        private set
+    var autoPresets by mutableStateOf(Prefs.autoPresets(ctx))
+        private set
+    var autoLog by mutableStateOf(Prefs.autoLog(ctx))
+        private set
+
+    fun setAuto(on: Boolean = autoOn, everyDays: Int = autoEvery, names: List<String> = autoPresets) {
+        autoOn = on
+        autoEvery = everyDays
+        autoPresets = names
+        Prefs.setAuto(ctx, on, everyDays, names)
+        AutoClean.schedule(ctx)
+    }
+
+    fun runAutoNow() {
+        if (busy) return
+        viewModelScope.launch {
+            busy = true
+            val msg = runCatching { withContext(Dispatchers.IO) { AutoClean.run(ctx) } }
+                .getOrElse { "خطا: ${it.message}" }
+            Prefs.setAutoLog(ctx, System.currentTimeMillis(), msg)
+            autoLog = Prefs.autoLog(ctx)
+            reloadBatches()
+            busy = false
+            loading = false
+            refresh()
+        }
+    }
+
     // ---- in-app trash (backup batches) ----
     var batches by mutableStateOf<List<Batch>>(emptyList())
         private set

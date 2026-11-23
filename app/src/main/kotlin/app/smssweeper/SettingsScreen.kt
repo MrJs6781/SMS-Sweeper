@@ -3,6 +3,7 @@ package app.smssweeper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,30 @@ fun SettingsScreen(vm: AppVm) {
     val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.importFrom(uri)
     }
+    Panel {
+        Text("پاکسازی خودکار", fontWeight = FontWeight.Bold)
+        SwitchRow("اجرای دوره‌ای قانون‌های انتخاب‌شده", vm.autoOn) { vm.setAuto(on = it) }
+        ChipRow {
+            listOf(1 to "روزانه", 7 to "هفتگی").forEach { (d, label) ->
+                FilterChip(vm.autoEvery == d, { vm.setAuto(everyDays = d) }, { Text(label) })
+            }
+        }
+        if (vm.presets.isEmpty()) {
+            Hint("ابتدا در تب «پاکسازی» یک قانون ذخیره کن؛ سپس اینجا انتخابش کن.")
+        } else {
+            Text("قانون‌هایی که اجرا شوند:")
+            ChipRow {
+                vm.presets.forEach { p ->
+                    val on = p.name in vm.autoPresets
+                    FilterChip(on, { vm.setAuto(names = if (on) vm.autoPresets - p.name else vm.autoPresets + p.name) }, { Text(p.name) })
+                }
+            }
+        }
+        Hint("حذف خودکار فقط وقتی کار می‌کند که SMS Sweeper در آن لحظه برنامه‌ی پیش‌فرض پیامک باشد؛ وگرنه اندروید اجازه نمی‌دهد و نتیجه‌ی «اجرا نشد» ثبت می‌شود. با پشتیبان روشن، حذف‌ها در سطل قابل بازگردانی‌اند.")
+        OutlinedButton({ vm.runAutoNow() }, Modifier.fillMaxWidth(), enabled = !vm.busy) { Text("اجرای همین حالا") }
+        vm.autoLog?.let { (t, msg) -> Hint("آخرین اجرا (${jalali(t)}): $msg") }
+    }
+
     Panel {
         Text("پشتیبان‌گیری", fontWeight = FontWeight.Bold)
         SwitchRow("پشتیبان خودکار قبل از هر حذف", vm.backupOn) { vm.setBackup(it) }

@@ -23,6 +23,24 @@ object Prefs {
     fun retention(ctx: Context) = sp(ctx).getInt("retention", 30)
     fun setRetention(ctx: Context, v: Int) = sp(ctx).edit().putInt("retention", v).apply()
 
+    fun autoOn(ctx: Context) = sp(ctx).getBoolean("autoOn", false)
+    fun autoEvery(ctx: Context) = sp(ctx).getInt("autoEvery", 7)
+    fun autoPresets(ctx: Context) = list(ctx, "autoPresets")
+
+    fun setAuto(ctx: Context, on: Boolean, everyDays: Int, presetNames: List<String>) {
+        sp(ctx).edit().putBoolean("autoOn", on).putInt("autoEvery", everyDays).apply()
+        put(ctx, "autoPresets", presetNames)
+    }
+
+    /** (time, message) of the last automatic run, if any. */
+    fun autoLog(ctx: Context): Pair<Long, String>? {
+        val t = sp(ctx).getLong("autoLogTime", 0)
+        return if (t == 0L) null else t to sp(ctx).getString("autoLogMsg", "").orEmpty()
+    }
+
+    fun setAutoLog(ctx: Context, time: Long, msg: String) =
+        sp(ctx).edit().putLong("autoLogTime", time).putString("autoLogMsg", msg).apply()
+
     fun presets(ctx: Context): List<Preset> = runCatching {
         val a = JSONArray(sp(ctx).getString("presets", "[]"))
         List(a.length()) { i ->
