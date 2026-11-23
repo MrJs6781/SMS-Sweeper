@@ -35,6 +35,16 @@ fun SettingsScreen(vm: AppVm) {
     var askAutoOn by remember { mutableStateOf(false) }
     var askRunNow by remember { mutableStateOf(false) }
 
+    // ---- appearance ----
+    Panel {
+        Text("ظاهر برنامه", fontWeight = FontWeight.Bold)
+        ChipRow {
+            listOf(0 to "مثل سیستم", 1 to "روشن", 2 to "تیره").forEach { (m, label) ->
+                FilterChip(vm.themeMode == m, { vm.changeTheme(m) }, { Text(label) })
+            }
+        }
+    }
+
     // ---- auto-clean ----
     Panel {
         Text("پاکسازی خودکار", fontWeight = FontWeight.Bold)

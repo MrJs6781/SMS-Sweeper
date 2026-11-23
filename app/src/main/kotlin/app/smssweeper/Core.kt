@@ -18,6 +18,8 @@ data class Sms(
     val date: Long,
     val type: Int,
     val read: Boolean = true,
+    /** conversation id; 0 when unknown (e.g. read from a backup file) */
+    val threadId: Long = 0,
 )
 
 /** All set conditions must match (AND). Dates are epoch millis in local time. */
@@ -97,13 +99,13 @@ object SmsRepo {
         val out = ArrayList<Sms>()
         cr.query(
             Telephony.Sms.CONTENT_URI,
-            arrayOf("_id", "address", "body", "date", "type", "read"),
+            arrayOf("_id", "address", "body", "date", "type", "read", "thread_id"),
             null, null, "date DESC"
         )?.use { c ->
             while (c.moveToNext()) {
                 out += Sms(
                     c.getLong(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(),
-                    c.getLong(3), c.getInt(4), c.getInt(5) != 0,
+                    c.getLong(3), c.getInt(4), c.getInt(5) != 0, c.getLong(6),
                 )
             }
         }
@@ -120,6 +122,28 @@ object SmsRepo {
         val s = matcher(c.sender, c.regex)
         val k = matcher(c.keyword, c.regex)
         val cutoff = c.olderThanDays?.let { now - it * DAY }
+
+        // Date conditions apply to whole conversations: a thread qualifies only if ALL of its
+        // messages fit (so a chat with messages both before and after the cut-off is left alone).
+        val timed = c.before != null || c.from != null || c.to != null || cutoff != null
+        val lo = HashMap<Long, Long>()
+        val hi = HashMap<Long, Long>()
+        if (timed) {
+            for (m in all) {
+                if (m.threadId == 0L) continue
+                lo.merge(m.threadId, m.date) { a, b -> minOf(a, b) }
+                hi.merge(m.threadId, m.date) { a, b -> maxOf(a, b) }
+            }
+        }
+        fun timeOk(m: Sms): Boolean {
+            val first = lo[m.threadId] ?: m.date // unknown thread: judge the message alone
+            val last = hi[m.threadId] ?: m.date
+            return (c.before == null || last < c.before) &&
+                (c.from == null || first >= c.from) &&
+                (c.to == null || last < c.to) &&
+                (cutoff == null || last < cutoff)
+        }
+
         val hits = all.filter { m ->
             val inBox = when (c.box) {
                 Box.ALL -> true
@@ -128,10 +152,7 @@ object SmsRepo {
             }
             inBox &&
                 !lists.isProtected(m.address) &&
-                (c.before == null || m.date < c.before) &&
-                (c.from == null || m.date >= c.from) &&
-                (c.to == null || m.date < c.to) &&
-                (cutoff == null || m.date < cutoff) &&
+                (!timed || timeOk(m)) &&
                 (s == null || s(m.address)) &&
                 (k == null || k(m.body)) &&
                 (c.read == ReadState.ANY || (c.read == ReadState.READ) == m.read) &&

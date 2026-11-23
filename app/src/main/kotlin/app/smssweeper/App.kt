@@ -73,13 +73,43 @@ fun App(vm: AppVm) {
     val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         isDefault = checkDefault()
     }
-    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasRead = it }
+    val perms = arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.SEND_SMS)
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        hasRead = checkRead()
+    }
+    var onboarded by remember { mutableStateOf(Prefs.onboarded(ctx)) }
+    fun requestRole() {
+        val rm = ctx.getSystemService(RoleManager::class.java)
+        roleLauncher.launch(rm.createRequestRoleIntent(RoleManager.ROLE_SMS))
+    }
+    // Becoming the default app normally grants the SMS permissions too; ask explicitly if that didn't happen.
     LaunchedEffect(isDefault) {
-        if (isDefault && !checkRead()) permLauncher.launch(Manifest.permission.READ_SMS)
+        if (isDefault && !checkRead()) permLauncher.launch(perms)
+    }
+    LaunchedEffect(isDefault, hasRead) {
+        if (isDefault && hasRead && !onboarded) {
+            Prefs.setOnboarded(ctx)
+            onboarded = true
+        }
     }
     LaunchedEffect(hasRead) { if (hasRead && vm.all == null) vm.refresh() }
 
     var dest by rememberSaveable { mutableStateOf(Dest.CLEAN) }
+
+    if (!onboarded || !hasRead) {
+        Onboarding(
+            hasRead = hasRead,
+            isDefault = isDefault,
+            onGrant = { if (!isDefault) requestRole() else permLauncher.launch(perms) },
+            onOpenSettings = {
+                ctx.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${ctx.packageName}"))
+                )
+            },
+            onSkip = { Prefs.setOnboarded(ctx); onboarded = true },
+        )
+        return
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -102,10 +132,7 @@ fun App(vm: AppVm) {
         ) {
             StatusBanner(
                 isDefault,
-                onSet = {
-                    val rm = ctx.getSystemService(RoleManager::class.java)
-                    roleLauncher.launch(rm.createRequestRoleIntent(RoleManager.ROLE_SMS))
-                },
+                onSet = { requestRole() },
                 onChange = { ctx.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) },
             )
             when (dest) {
