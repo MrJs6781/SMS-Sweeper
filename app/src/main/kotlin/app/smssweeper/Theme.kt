@@ -17,32 +17,58 @@ val IranSans = FontFamily(
     Font(R.font.iransans_bold, FontWeight.Bold),
 )
 
+// Splash / brand
 val Teal = Color(0xFF19D3B0)
 val NavyTop = Color(0xFF0E1330)
 val NavyBottom = Color(0xFF1E2760)
 
+// Minimal palette: neutrals + one teal accent; red is reserved for destructive actions.
 private val Light = lightColorScheme(
-    primary = Color(0xFF4F5BFF),
+    primary = Color(0xFF0F766E),
     onPrimary = Color.White,
-    secondaryContainer = Color(0xFFDDE0FF),
-    onSecondaryContainer = Color(0xFF14196B),
-    background = Color(0xFFF4F5FF),
+    secondaryContainer = Color(0xFFE0F2F1),
+    onSecondaryContainer = Color(0xFF0B4F49),
+    background = Color(0xFFF7F8FA),
+    onBackground = Color(0xFF111827),
     surface = Color.White,
-    onSurface = Color(0xFF14172E),
-    onSurfaceVariant = Color(0xFF555A7A),
-    error = Color(0xFFE5384F),
+    onSurface = Color(0xFF111827),
+    surfaceVariant = Color(0xFFF1F3F5),
+    onSurfaceVariant = Color(0xFF6B7280),
+    outline = Color(0xFFD1D5DB),
+    outlineVariant = Color(0xFFE5E7EB),
+    error = Color(0xFFDC2626),
+    onError = Color.White,
+    errorContainer = Color(0xFFFEE2E2),
+    onErrorContainer = Color(0xFF7F1D1D),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF7F8FA),
+    surfaceContainer = Color.White,
+    surfaceContainerHigh = Color(0xFFF1F3F5),
+    surfaceContainerHighest = Color(0xFFEBEEF1),
 )
 
 private val Dark = darkColorScheme(
-    primary = Color(0xFF8C97FF),
-    onPrimary = NavyTop,
-    secondaryContainer = Color(0xFF2A3470),
-    onSecondaryContainer = Color(0xFFDDE0FF),
-    background = NavyTop,
-    surface = Color(0xFF171E48),
-    onSurface = Color(0xFFEDEFFF),
-    onSurfaceVariant = Color(0xFFA9AFD6),
-    error = Color(0xFFFF6B7D),
+    primary = Color(0xFF2DD4BF),
+    onPrimary = Color(0xFF042F2B),
+    secondaryContainer = Color(0xFF123A37),
+    onSecondaryContainer = Color(0xFFB9F3EA),
+    background = Color(0xFF0E1013),
+    onBackground = Color(0xFFE5E7EB),
+    surface = Color(0xFF16191E),
+    onSurface = Color(0xFFE5E7EB),
+    surfaceVariant = Color(0xFF1F242B),
+    onSurfaceVariant = Color(0xFF9CA3AF),
+    outline = Color(0xFF3A404A),
+    outlineVariant = Color(0xFF262B33),
+    error = Color(0xFFF87171),
+    onError = Color(0xFF450A0A),
+    errorContainer = Color(0xFF3B1212),
+    onErrorContainer = Color(0xFFFECACA),
+    surfaceContainerLowest = Color(0xFF0E1013),
+    surfaceContainerLow = Color(0xFF121519),
+    surfaceContainer = Color(0xFF16191E),
+    surfaceContainerHigh = Color(0xFF1C2026),
+    surfaceContainerHighest = Color(0xFF22272E),
 )
 
 private fun Typography.withFont(f: FontFamily) = Typography(
