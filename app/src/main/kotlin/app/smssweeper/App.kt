@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 
 enum class Tab(val label: String, val icon: String) {
     CLEAN("پاکسازی", "🧹"),
+    SENDERS("فرستنده‌ها", "👥"),
 }
 
 @Composable
@@ -95,6 +96,7 @@ fun App(vm: AppVm) {
             }
             when (tab) {
                 Tab.CLEAN -> CleanScreen(vm, isDefault)
+                Tab.SENDERS -> SendersScreen(vm, isDefault)
             }
         }
     }
